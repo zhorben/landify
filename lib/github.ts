@@ -57,8 +57,11 @@ async function waitForRepo(owner: string, repo: string, maxAttempts = 10) {
       if (branch.commit) {
         return true;
       }
-    } catch (error) {
-      console.log(`Attempt ${i + 1}: Repo not ready yet`);
+    } catch (err) {
+      console.log(
+        `Attempt ${i + 1}: Repo not ready yet`,
+        err instanceof Error ? err.message : "Unknown error",
+      );
     }
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
