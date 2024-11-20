@@ -66,21 +66,6 @@ function validateResponse(response: string) {
   }
 }
 
-function handleGenerationError(error: unknown): never {
-  if (error instanceof Anthropic.APIError) {
-    console.error("Claude API Error:", {
-      message: error.message,
-      status: error.status,
-    });
-    throw new Error(`Claude API Error: ${error.message}`);
-  }
-
-  const errorMessage =
-    error instanceof Error ? error.message : "Unknown error occurred";
-  console.error("Error generating landing page:", errorMessage);
-  throw new Error(`Failed to generate landing page: ${errorMessage}`);
-}
-
 function generatePrompt(template: Template): string {
   return template.prompt;
 }
