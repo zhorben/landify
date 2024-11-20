@@ -42,8 +42,8 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
       <CardHeader>
         <CardTitle>Describe Your Landing Page</CardTitle>
         <CardDescription>
-          Tell us about your product and we'll generate a modern landing page
-          using React, Tailwind, and shadcn/ui components.
+          Tell us about your product and we&apos;ll generate a modern landing
+          page using React, Tailwind, and shadcn/ui components.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

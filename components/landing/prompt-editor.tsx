@@ -18,11 +18,7 @@ interface PromptEditorProps {
   isLoading?: boolean;
 }
 
-export function PromptEditor({
-  template,
-  onSubmit,
-  isLoading,
-}: PromptEditorProps) {
+export function PromptEditor({ template, isLoading }: PromptEditorProps) {
   return (
     <Card>
       <CardHeader>

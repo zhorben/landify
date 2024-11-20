@@ -93,7 +93,7 @@ function parseAIResponse(response: string): GeneratedPage {
   );
 
   for (const match of componentMatches) {
-    const [_, path, code] = match;
+    const [, path, code] = match;
     // Очищаем путь от 'src/'
     const cleanPath = path.replace("src/", "");
 
