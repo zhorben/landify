@@ -10,9 +10,14 @@ import { Copy, Download, Check, ExternalLink, Github } from "lucide-react";
 interface PagePreviewProps {
   page: GeneratedPage | null | undefined;
   isLoading?: boolean;
+  currentStep?: string;
 }
 
-export function PagePreview({ page, isLoading }: PagePreviewProps) {
+export function PagePreview({
+  page,
+  isLoading,
+  currentStep,
+}: PagePreviewProps) {
   const [copied, setCopied] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"preview" | "code">("preview");
 
@@ -131,7 +136,15 @@ export function PagePreview({ page, isLoading }: PagePreviewProps) {
                 />
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
-                  Deployment in progress...
+                  {currentStep === "generating" && "Generating content..."}
+                  {currentStep === "deploying" && "Deploying site..."}
+                  {currentStep === "completed" && page?.deployment?.url && (
+                    <iframe
+                      src={`https://${page.deployment.url}`}
+                      className="w-full h-full"
+                      title="Preview"
+                    />
+                  )}
                 </div>
               )}
             </div>

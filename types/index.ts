@@ -40,6 +40,12 @@ export interface DeploymentInfo {
   status: DeploymentStatus;
 }
 
+export type GenerationStep =
+  | { step: "generating" }
+  | { step: "deploying" }
+  | { step: "completed"; result: GeneratedPage }
+  | { step: "error"; error: string };
+
 export interface GeneratedPage {
   id: string;
   name: string;

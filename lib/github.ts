@@ -44,6 +44,27 @@ export async function createRepoFromTemplate({
   }
 }
 
+async function waitForRepo(owner: string, repo: string, maxAttempts = 10) {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      // Пробуем получить main branch
+      const { data: branch } = await octokit.repos.getBranch({
+        owner,
+        repo,
+        branch: config.github.defaultBranch,
+      });
+
+      if (branch.commit) {
+        return true;
+      }
+    } catch (error) {
+      console.log(`Attempt ${i + 1}: Repo not ready yet`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  throw new Error("Repository initialization timed out");
+}
+
 export async function commitFiles(
   owner: string,
   repo: string,
@@ -51,21 +72,19 @@ export async function commitFiles(
   message: string = "Update landing page content",
 ) {
   try {
-    // 1. Получаем текущий коммит в main
+    // Ждем инициализации репозитория
+    console.log("Waiting for repository initialization...");
+    await waitForRepo(owner, repo);
+    console.log("Repository ready");
+
+    // Получаем текущий коммит
     const { data: mainRef } = await octokit.git.getRef({
       owner,
       repo,
       ref: `heads/${config.github.defaultBranch}`,
     });
 
-    // 2. Получаем текущее дерево
-    const { data: currentCommit } = await octokit.git.getCommit({
-      owner,
-      repo,
-      commit_sha: mainRef.object.sha,
-    });
-
-    // 3. Создаем блобы для новых файлов
+    // Создаем блобы для файлов
     const blobs = await Promise.all(
       Array.from(files.entries()).map(async ([path, { data }]) => {
         const blob = await octokit.git.createBlob({
@@ -83,32 +102,32 @@ export async function commitFiles(
       }),
     );
 
-    // 4. Создаем новое дерево, используя текущее как базу
-    const { data: newTree } = await octokit.git.createTree({
+    // Создаем новое дерево на основе существующего
+    const tree = await octokit.git.createTree({
       owner,
       repo,
-      base_tree: currentCommit.tree.sha,
+      base_tree: mainRef.object.sha,
       tree: blobs,
     });
 
-    // 5. Создаем новый коммит
-    const { data: newCommit } = await octokit.git.createCommit({
+    // Создаем новый коммит
+    const commit = await octokit.git.createCommit({
       owner,
       repo,
       message,
-      tree: newTree.sha,
+      tree: tree.data.sha,
       parents: [mainRef.object.sha],
     });
 
-    // 6. Обновляем main branch
+    // Обновляем ветку
     await octokit.git.updateRef({
       owner,
       repo,
       ref: `heads/${config.github.defaultBranch}`,
-      sha: newCommit.sha,
+      sha: commit.data.sha,
     });
 
-    return newCommit;
+    return commit.data;
   } catch (error) {
     console.error("Failed to commit files:", error);
     throw error;

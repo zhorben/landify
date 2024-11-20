@@ -6,36 +6,53 @@ interface UseGenerationProps {
   onError?: (error: Error) => void;
 }
 
-export function useGeneration({ onSuccess, onError }: UseGenerationProps = {}) {
+export function useGeneration({ onSuccess }: UseGenerationProps = {}) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [currentStep, setCurrentStep] = useState<string>("idle");
 
   async function generatePage(template: Template) {
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await fetch("/api/generate", {
+      // 1. Генерируем контент
+      setCurrentStep("generating");
+      const contentResponse = await fetch("/api/generate/content", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ template }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to generate page");
+      if (!contentResponse.ok) {
+        const errorData = await contentResponse.json();
+        throw new Error(errorData.error || "Failed to generate content");
       }
 
-      const generatedPage = await response.json();
-      onSuccess?.(generatedPage);
-      return generatedPage;
+      const { generatedPage } = await contentResponse.json();
+
+      // 2. Деплоим
+      setCurrentStep("deploying");
+      const deployResponse = await fetch("/api/generate/deploy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ generatedPage }),
+      });
+
+      if (!deployResponse.ok) {
+        const errorData = await deployResponse.json();
+        throw new Error(errorData.error || "Failed to deploy");
+      }
+
+      const { result } = await deployResponse.json();
+
+      setCurrentStep("completed");
+      onSuccess?.(result);
+      return result;
     } catch (e) {
-      const error = e instanceof Error ? e : new Error("Unknown error");
-      setError(error);
-      onError?.(error);
-      throw error;
+      const errorMessage = e instanceof Error ? e.message : "Unknown error";
+      setError(new Error(errorMessage));
+      throw new Error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -45,5 +62,6 @@ export function useGeneration({ onSuccess, onError }: UseGenerationProps = {}) {
     generatePage,
     isLoading,
     error,
+    currentStep,
   };
 }

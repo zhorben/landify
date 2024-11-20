@@ -59,7 +59,7 @@ export async function generateAndDeployLanding(
   }
 }
 
-function prepareFilesForCommit(
+export function prepareFilesForCommit(
   page: GeneratedPage,
 ): Map<string, { data: string }> {
   const files = new Map<string, { data: string }>();

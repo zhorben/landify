@@ -7,14 +7,13 @@ import { useGeneration } from "@/hooks/use-generation";
 import { DEFAULT_TEMPLATE } from "@/lib/templates";
 import type { GeneratedPage } from "@/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 
 export default function GeneratePage() {
   const [generatedPage, setGeneratedPage] = useState<GeneratedPage | null>(
     null,
   );
 
-  const { generatePage, isLoading, error } = useGeneration({
+  const { generatePage, isLoading, error, currentStep } = useGeneration({
     onSuccess: (page) => {
       setGeneratedPage(page);
     },
@@ -31,10 +30,6 @@ export default function GeneratePage() {
     }
   };
 
-  const handleTestGeneration = async () => {
-    await handleGenerate(DEFAULT_TEMPLATE.prompt);
-  };
-
   return (
     <main className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto space-y-8">
@@ -43,9 +38,6 @@ export default function GeneratePage() {
           <p className="text-muted-foreground">
             Describe your landing page and let AI do the magic
           </p>
-          <Button onClick={handleTestGeneration} disabled={isLoading}>
-            {isLoading ? "Generating..." : "Test Generation"}
-          </Button>
         </div>
 
         <PromptInput onSubmit={handleGenerate} isLoading={isLoading} />
@@ -56,7 +48,11 @@ export default function GeneratePage() {
           </Alert>
         )}
 
-        <PagePreview page={generatedPage} isLoading={isLoading} />
+        <PagePreview
+          page={generatedPage}
+          isLoading={isLoading}
+          currentStep={currentStep}
+        />
       </div>
     </main>
   );
