@@ -41,7 +41,7 @@ export async function generateLandingPage(
       throw new Error("No text response from Claude");
     }
 
-    console.log("AI Response:", responseText); // Добавляем лог ответа
+    console.log("AI Response:", responseText);
 
     validateResponse(responseText);
 
@@ -50,7 +50,8 @@ export async function generateLandingPage(
 
     return generatedPage;
   } catch (error) {
-    handleGenerationError(error);
+    console.error("AI Generation error:", error);
+    throw error; // просто прокидываем ошибку дальше
   }
 }
 
