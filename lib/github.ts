@@ -72,7 +72,7 @@ export async function commitFiles(
   owner: string,
   repo: string,
   files: Map<string, { data: string }>,
-  message: string = "Update landing page content",
+  message: string = "Update website content",
 ) {
   try {
     // Ждем инициализации репозитория

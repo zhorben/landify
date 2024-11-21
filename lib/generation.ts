@@ -1,38 +1,35 @@
-import { generateLandingPage } from "./ai";
+import { generateWebsite } from "./ai";
 import { createRepoFromTemplate, commitFiles } from "./github";
-import { deployToVercel } from "./deploy";
-import type { Template, GeneratedPage } from "@/types";
+import { deployToCloudflare } from "./deploy/cloudflare";
+import type { Template, GeneratedWebsite } from "@/types";
 
-export async function generateAndDeployLanding(
+export async function generateAndDeploy(
   template: Template,
-): Promise<GeneratedPage> {
+): Promise<GeneratedWebsite> {
   try {
     // 1. Генерируем контент через AI
-    console.log("Generating landing page content...");
-    const generatedPage = await generateLandingPage(template);
+    console.log("Generating website content...");
+    const generatedWebsite = await generateWebsite(template);
 
     // 2. Создаем репозиторий из шаблона
     console.log("Creating GitHub repository...");
-    const repoName = `landing-${generatedPage.id}`;
+    const repoName = `website-${generatedWebsite.id}`;
     const repo = await createRepoFromTemplate({
       name: repoName,
       description: template.description,
     });
-
-    // Добавляем небольшую задержку после создания репозитория
-    await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // 3. Коммитим сгенерированные файлы
     console.log("Committing generated files...");
     await commitFiles(
       repo.owner.login,
       repo.name,
-      prepareFilesForCommit(generatedPage),
+      prepareFilesForCommit(generatedWebsite),
     );
 
-    // 4. Деплоим на Vercel
-    console.log("Deploying to Vercel...");
-    const deployment = await deployToVercel({
+    // 4. Сразу начинаем деплой
+    console.log("Deploying to Cloudflare Pages...");
+    const deployment = await deployToCloudflare({
       name: repoName,
       gitRepository: {
         repo: repo.full_name,
@@ -41,7 +38,7 @@ export async function generateAndDeployLanding(
     });
 
     return {
-      ...generatedPage,
+      ...generatedWebsite,
       github: {
         owner: repo.owner.login,
         repo: repo.name,
@@ -60,31 +57,63 @@ export async function generateAndDeployLanding(
 }
 
 export function prepareFilesForCommit(
-  page: GeneratedPage,
+  website: GeneratedWebsite,
 ): Map<string, { data: string }> {
   const files = new Map<string, { data: string }>();
 
-  Object.entries(page.components).forEach(([name, component]) => {
+  Object.entries(website.components).forEach(([name, component]) => {
     if (name === "App") {
       files.set("src/App.tsx", {
         data: `${component.imports.join("\n")}\n\n${component.code}`,
       });
-    } else if (name === "tailwind.config") {
-      files.set("tailwind.config.ts", {
-        data: component.code,
-      });
     } else if (name.startsWith("components/")) {
-      // Компоненты в components/
       files.set(`src/${name}.tsx`, {
         data: `${component.imports.join("\n")}\n\n${component.code}`,
       });
     } else {
-      // Страницы в pages/
       files.set(`src/pages/${name}.tsx`, {
         data: `${component.imports.join("\n")}\n\n${component.code}`,
       });
     }
   });
+
+  const metadataContent = `
+<title>${website.metadata.title}</title>
+<meta name="description" content="${website.metadata.description}" />
+<meta name="keywords" content="${website.metadata.keywords.join(", ")}" />
+
+<!-- Open Graph / Facebook -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="${website.metadata.openGraph.title}" />
+<meta property="og:description" content="${website.metadata.openGraph.description}" />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${website.metadata.openGraph.title}" />
+<meta name="twitter:description" content="${website.metadata.openGraph.description}" />
+  `;
+
+  const indexHtml = `
+<!DOCTYPE html>
+<html lang="${website.metadata.language}">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- BEGIN: Metadata -->
+    ${metadataContent}
+    <!-- END: Metadata -->
+
+    <script type="module" src="/src/main.tsx"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+  `;
+
+  files.set("index.html", { data: indexHtml });
 
   return files;
 }

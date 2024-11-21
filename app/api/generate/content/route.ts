@@ -1,28 +1,28 @@
-import { NextResponse } from "next/server";
-import { generateLandingPage } from "@/lib/ai";
+import {
+  handleApiError,
+  createApiResponse,
+  ApiError,
+} from "@/lib/api-response";
+import { generateWebsite } from "@/lib/ai";
 import type { Template } from "@/types";
 
 export const maxDuration = 30;
 
 export async function POST(req: Request) {
   try {
-    const { template } = (await req.json()) as { template: Template };
+    const body = await req.json();
+
+    if (!body.template) {
+      throw new ApiError("Template is required", 400);
+    }
+
+    const template = body.template as Template;
 
     console.log("Generating content for template:", template.name);
-    const generatedPage = await generateLandingPage(template);
+    const generatedWebsite = await generateWebsite(template);
 
-    return NextResponse.json({
-      step: "generating",
-      generatedPage,
-    });
+    return createApiResponse({ generatedWebsite }, "generating");
   } catch (error) {
-    console.error("Content generation failed:", error);
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Failed to generate content",
-      },
-      { status: 500 },
-    );
+    return handleApiError(error);
   }
 }

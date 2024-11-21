@@ -11,11 +11,17 @@ export interface GeneratedComponent {
   imports: string[];
 }
 
-export interface PageMetadata {
+interface OpenGraph {
+  title: string;
+  description: string;
+}
+
+export interface WebsiteMetadata {
   title: string;
   description: string;
   keywords: string[];
   language: string;
+  openGraph: OpenGraph;
 }
 
 interface GitHubInfo {
@@ -25,14 +31,15 @@ interface GitHubInfo {
 }
 
 export type DeploymentStatus =
-  | "INITIALIZING"
-  | "ANALYZING"
-  | "BUILDING"
-  | "DEPLOYING"
-  | "READY"
-  | "QUEUED"
-  | "CANCELED"
-  | "ERROR";
+  | "initializing"
+  | "pending"
+  | "building"
+  | "ready"
+  | "failed"
+  | "canceled"
+  | "success"
+  | "queued"
+  | "active";
 
 export interface DeploymentInfo {
   url: string;
@@ -43,10 +50,10 @@ export interface DeploymentInfo {
 export type GenerationStep =
   | { step: "generating" }
   | { step: "deploying" }
-  | { step: "completed"; result: GeneratedPage }
+  | { step: "completed"; result: GeneratedWebsite }
   | { step: "error"; error: string };
 
-export interface GeneratedPage {
+export interface GeneratedWebsite {
   id: string;
   name: string;
   components: Record<string, GeneratedComponent>;
@@ -54,5 +61,5 @@ export interface GeneratedPage {
   deployment?: DeploymentInfo;
   createdAt: Date;
   updatedAt: Date;
-  metadata: PageMetadata;
+  metadata: WebsiteMetadata;
 }

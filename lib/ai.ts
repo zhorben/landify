@@ -1,14 +1,27 @@
-import type { Template, GeneratedPage, GeneratedComponent } from "@/types";
+import type {
+  Template,
+  GeneratedWebsite,
+  GeneratedComponent,
+  WebsiteMetadata,
+} from "@/types";
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "./config";
+import { generateId } from "./utils";
+import { validateWithAI } from "./validation";
 
-const anthropic = new Anthropic({
+export const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-export async function generateLandingPage(
+export async function generateWebsite(
   template: Template,
-): Promise<GeneratedPage> {
+): Promise<GeneratedWebsite> {
+  const validation = await validateWithAI(template.prompt);
+
+  if (!validation.possible) {
+    throw new Error(validation.reason);
+  }
+
   const prompt = generatePrompt(template);
 
   try {
@@ -45,18 +58,17 @@ export async function generateLandingPage(
 
     validateResponse(responseText);
 
-    const generatedPage = parseAIResponse(responseText);
-    console.log("Parsed Page:", JSON.stringify(generatedPage, null, 2));
+    const generatedWebsite = parseAIResponse(responseText);
+    console.log("Parsed Website:", JSON.stringify(generatedWebsite, null, 2));
 
-    return generatedPage;
+    return generatedWebsite;
   } catch (error) {
     console.error("AI Generation error:", error);
-    throw error; // просто прокидываем ошибку дальше
+    throw error;
   }
 }
 
 function validateResponse(response: string) {
-  // Проверяем только общий формат ответа
   if (!response.includes(".tsx---")) {
     throw new Error("Invalid response format: missing component declarations");
   }
@@ -70,52 +82,106 @@ function generatePrompt(template: Template): string {
   return template.prompt;
 }
 
-function parseAIResponse(response: string): GeneratedPage {
-  const components: Record<string, GeneratedComponent> = {};
+function parseAIResponse(response: string): GeneratedWebsite {
+  // Сначала извлекаем метаданные
+  const metadataMatch = response.match(/---metadata---\n([\s\S]*?)\n---/);
+  let metadata: WebsiteMetadata;
 
-  // Извлекаем код каждого компонента
+  if (metadataMatch) {
+    try {
+      // Добавляем логирование для отладки
+      console.log("Raw metadata:", metadataMatch[1]);
+
+      // Очищаем JSON перед парсингом
+      const cleanedJson = metadataMatch[1].trim().replace(/\n/g, "");
+      console.log("Cleaned metadata JSON:", cleanedJson);
+
+      const parsedMetadata = JSON.parse(cleanedJson);
+      metadata = {
+        title: parsedMetadata.title,
+        description: parsedMetadata.description,
+        keywords: parsedMetadata.keywords,
+        language: "en",
+        openGraph: {
+          title: parsedMetadata.openGraph.title,
+          description: parsedMetadata.openGraph.description,
+        },
+      };
+    } catch (error) {
+      console.error("Metadata parsing error:", error);
+      metadata = getDefaultMetadata();
+    }
+  } else {
+    metadata = getDefaultMetadata();
+  }
+
+  // Извлекаем код компонентов с улучшенным regex
   const componentMatches = response.matchAll(
-    /---(.+?)\.tsx---\n([\s\S]*?)(?=\n---|\n$)/g,
+    /---src\/(.+?)---\n([\s\S]*?)(?=\n---|\n\n[A-Za-z]|$)/g,
   );
 
-  for (const match of componentMatches) {
-    const [, path, code] = match;
-    // Очищаем путь от 'src/'
-    const cleanPath = path.replace("src/", "");
+  console.log("Starting component processing...");
+  const matches = Array.from(componentMatches);
 
-    if (cleanPath.startsWith("pages/")) {
-      // Для страниц берем только имя файла
-      const fileName = cleanPath.split("/").pop()?.replace(".tsx", "") || "";
-      components[fileName] = {
-        code: code.trim(),
-        imports: extractImports(code),
+  const components: Record<string, GeneratedComponent> = {};
+
+  for (const match of matches) {
+    const [fullMatch, path, code] = match;
+    console.log(`Processing component ${path}...`);
+    console.log("Code length:", code.length);
+
+    // Извлекаем весь код между маркерами
+    const startIndex = response.indexOf(fullMatch) + fullMatch.indexOf(code);
+    const nextMarkerIndex = response.indexOf("---src/", startIndex + 1);
+    const endIndex =
+      nextMarkerIndex === -1
+        ? response.indexOf("\n\nThis implementation", startIndex)
+        : nextMarkerIndex;
+
+    const fullCode = response
+      .slice(startIndex, endIndex === -1 ? undefined : endIndex)
+      .trim();
+    console.log(`Full code length for ${path}:`, fullCode.length);
+
+    if (path.startsWith("pages/")) {
+      const pageName = path.split("/").pop()?.replace(".tsx", "") || "";
+      components[pageName] = {
+        code: fullCode,
+        imports: extractImports(fullCode),
       };
-    } else if (cleanPath === "App.tsx") {
+    } else if (path === "App.tsx") {
       components["App"] = {
-        code: code.trim(),
-        imports: extractImports(code),
+        code: fullCode,
+        imports: extractImports(fullCode),
       };
-    } else if (cleanPath.startsWith("components/")) {
-      // Для компонентов сохраняем полный путь
-      const componentPath = cleanPath.replace(".tsx", "");
+    } else if (path.startsWith("components/")) {
+      const componentPath = path.replace(".tsx", "");
       components[componentPath] = {
-        code: code.trim(),
-        imports: extractImports(code),
+        code: fullCode,
+        imports: extractImports(fullCode),
       };
     }
   }
 
   return {
     id: generateId(),
-    name: "Generated Landing Page",
+    name: metadata.title,
     components,
     createdAt: new Date(),
     updatedAt: new Date(),
-    metadata: {
-      title: "Landing Page",
-      description: "Generated landing page",
-      keywords: ["react", "landing-page"],
-      language: "en",
+    metadata,
+  };
+}
+
+function getDefaultMetadata(): WebsiteMetadata {
+  return {
+    title: "Generated Website",
+    description: "AI-generated website built with React and Tailwind CSS",
+    keywords: ["react", "website", "ai-generated"],
+    language: "en",
+    openGraph: {
+      title: "Generated Website",
+      description: "AI-generated website built with React and Tailwind CSS",
     },
   };
 }
@@ -130,8 +196,4 @@ function extractImports(code: string): string[] {
   }
 
   return imports;
-}
-
-function generateId(): string {
-  return Math.random().toString(36).substring(2) + Date.now().toString(36);
 }
