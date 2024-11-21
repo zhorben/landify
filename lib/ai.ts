@@ -16,15 +16,19 @@ export const anthropic = new Anthropic({
 export async function generateWebsite(
   template: Template,
 ): Promise<GeneratedWebsite> {
+  console.log("Starting validation...");
   const validation = await validateWithAI(template.prompt);
+  console.log("Validation result:", validation);
 
   if (!validation.possible) {
     throw new Error(validation.reason);
   }
 
   const prompt = generatePrompt(template);
+  console.log("Generated prompt length:", prompt.length);
 
   try {
+    console.log("Sending request to Claude...");
     const message = await anthropic.messages.create({
       model: config.ai.model,
       max_tokens: config.ai.maxTokens,
@@ -41,6 +45,7 @@ export async function generateWebsite(
         },
       ],
     });
+    console.log("Received response from Claude");
 
     if (!message.content.length) {
       throw new Error("Empty response from Claude");
@@ -53,6 +58,8 @@ export async function generateWebsite(
     if (!responseText) {
       throw new Error("No text response from Claude");
     }
+
+    console.log("Response text length:", responseText.length);
 
     console.log("AI Response:", responseText);
 

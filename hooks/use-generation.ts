@@ -12,20 +12,29 @@ export function useGeneration({ onSuccess, onError }: UseGenerationProps = {}) {
   const [currentStep, setCurrentStep] = useState<string>("idle");
   const [page, setPage] = useState<GeneratedWebsite | null>(null);
 
-  async function generatePage(template: Template) {
+  const generatePage = async (template: Template) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // 1. Генерируем контент и сразу начинаем деплой
-      setCurrentStep("generating");
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 240000); // 4 минуты
+
       const contentResponse = await fetch("/api/generate/content", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ template }),
+        signal: controller.signal,
       });
 
+      clearTimeout(timeout);
+
       if (!contentResponse.ok) {
+        if (contentResponse.status === 504) {
+          throw new Error(
+            "Request timed out. Please try again with a shorter prompt.",
+          );
+        }
         const errorData = await contentResponse.json();
         throw new Error(errorData.error || "Failed to generate content");
       }
@@ -60,7 +69,7 @@ export function useGeneration({ onSuccess, onError }: UseGenerationProps = {}) {
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   return {
     generatePage,
