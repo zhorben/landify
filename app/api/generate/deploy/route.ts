@@ -4,7 +4,7 @@ import {
   ApiError,
 } from "@/lib/api-response";
 import { createRepoFromTemplate, commitFiles } from "@/lib/github";
-import { deployToCloudflare } from "@/lib/cloudflare";
+import { deployToCloudflare } from "@/lib/deploy/cloudflare";
 import { prepareFilesForCommit } from "@/lib/generation";
 import type { GeneratedWebsite } from "@/types";
 
