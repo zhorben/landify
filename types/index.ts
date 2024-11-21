@@ -45,6 +45,7 @@ export interface DeploymentInfo {
   url: string;
   deploymentId: string;
   status: DeploymentStatus;
+  message?: string;
 }
 
 export type GenerationStep =

@@ -91,7 +91,7 @@ export function useGeneration({ onSuccess, onError }: UseGenerationProps = {}) {
 
       let attempts = 0;
       const maxAttempts = 12;
-      const pollInterval = 40000; // 30 секунд между проверками
+      const pollInterval = 15000; // 15 секунд между проверками
 
       while (attempts < maxAttempts) {
         await new Promise((resolve) => setTimeout(resolve, pollInterval));
@@ -105,7 +105,6 @@ export function useGeneration({ onSuccess, onError }: UseGenerationProps = {}) {
           );
 
           if (!status) {
-            // Добавляем дополнительную задержку при ошибке
             await new Promise((resolve) => setTimeout(resolve, 5000));
             continue;
           }
@@ -115,12 +114,11 @@ export function useGeneration({ onSuccess, onError }: UseGenerationProps = {}) {
             deployment: {
               ...initialDeployment.deployment,
               status: status.status,
-              message: status.message,
+              message: status.message || "Deployment in progress",
             },
           };
           setPage(updatedDeployment);
 
-          // Если сайт доступен, завершаем
           if (
             status.status === "ready" &&
             status.message === "Site is live and accessible"
@@ -131,7 +129,6 @@ export function useGeneration({ onSuccess, onError }: UseGenerationProps = {}) {
             return updatedDeployment;
           }
 
-          // Если деплой явно завершился неудачей, прекращаем попытки
           if (status.status === "failed" || status.status === "canceled") {
             throw new Error(`Deployment failed with status: ${status.status}`);
           }
@@ -143,7 +140,6 @@ export function useGeneration({ onSuccess, onError }: UseGenerationProps = {}) {
           if (attempts === maxAttempts) {
             throw error;
           }
-          // Добавляем дополнительную задержку при ошибке
           await new Promise((resolve) => setTimeout(resolve, 5000));
         }
       }
