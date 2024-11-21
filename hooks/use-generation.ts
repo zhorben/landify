@@ -91,7 +91,7 @@ export function useGeneration({ onSuccess, onError }: UseGenerationProps = {}) {
 
       let attempts = 0;
       const maxAttempts = 12;
-      const pollInterval = 15000; // 15 секунд между проверками
+      const pollInterval = 40000; // 40 секунд между проверками
 
       while (attempts < maxAttempts) {
         await new Promise((resolve) => setTimeout(resolve, pollInterval));
