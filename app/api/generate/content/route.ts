@@ -6,7 +6,7 @@ import {
 import { generateWebsite } from "@/lib/ai";
 import type { Template } from "@/types";
 
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 export async function POST(req: Request) {
   try {
