@@ -1,7 +1,5 @@
 import Link from "next/link";
-import { PROMPTS } from "@/lib/prompts";
 import { Container } from "@/components/layouts/container";
-import { PromptCard } from "@/components/shared/prompt-card";
 import { APP_NAME, APP_TAGLINE } from "@/lib/constants/common";
 
 export default function Home() {
