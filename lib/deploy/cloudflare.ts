@@ -70,7 +70,7 @@ async function checkSiteAvailability(url: string): Promise<boolean> {
     // DNS проверка
     try {
       await dnsLookup(new URL(url).hostname);
-    } catch (dnsError) {
+    } catch {
       console.log("DNS resolution failed, site might not be ready yet");
       return false;
     }
