@@ -15,6 +15,7 @@ export function useGeneration({ onSuccess, onError }: UseGenerationProps = {}) {
   const generatePage = async (template: Template) => {
     setIsLoading(true);
     setError(null);
+    setCurrentStep("generating");
 
     try {
       const controller = new AbortController();
@@ -39,7 +40,8 @@ export function useGeneration({ onSuccess, onError }: UseGenerationProps = {}) {
         throw new Error(errorData.error || "Failed to generate content");
       }
 
-      const { generatedWebsite } = await contentResponse.json();
+      const contentData = await contentResponse.json();
+      const generatedWebsite = contentData.data.generatedWebsite;
       setPage(generatedWebsite);
 
       // 2. Деплоим
@@ -55,7 +57,8 @@ export function useGeneration({ onSuccess, onError }: UseGenerationProps = {}) {
         throw new Error(errorData.error || "Failed to deploy");
       }
 
-      const { result } = await deployResponse.json();
+      const deployData = await deployResponse.json();
+      const result = deployData.data;
 
       setCurrentStep("completed");
       setPage(result);
