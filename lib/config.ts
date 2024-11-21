@@ -35,6 +35,29 @@ export const config = {
     8. Avoid any special Unicode characters
     9. Use proper escaping for special characters where needed
 
+    Code Quality Requirements:
+    1. ALWAYS verify component dependencies:
+       - When creating a new component, list ALL required components that will be used
+       - When using a component, ALWAYS include its import statement
+       - Check that all referenced components are either imported or defined
+       - Ensure all custom components have corresponding files and imports
+       - Double-check that components used in JSX have their imports
+
+    2. Import statement rules:
+       - Place all imports at the top of the file
+       - Group imports in this order:
+         1. React and core libraries
+         2. Third-party components and libraries
+         3. Local components and utilities
+         4. Types and interfaces
+
+    3. File Structure Validation:
+      - Before returning the response, verify that:
+        • All components used in JSX are imported
+        • All custom components have their file definitions included
+        • All required shadcn/ui components are imported
+        • All utility functions and hooks are imported
+
     Available Libraries (already set up):
     - shadcn/ui: UI components
     - lucide-react: Icons
