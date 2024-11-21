@@ -18,21 +18,6 @@ export default function Home() {
           >
             Let&apos;s Build Magic ✨
           </Link>
-
-          <div className="pt-12">
-            <h2 className="text-lg font-medium mb-4">
-              Spark your imagination 💫
-            </h2>
-            <div className="grid gap-4">
-              {PROMPTS.map((prompt, index) => (
-                <PromptCard
-                  key={index}
-                  prompt={prompt}
-                  href={`/generate?prompt=${encodeURIComponent(prompt.text)}`}
-                />
-              ))}
-            </div>
-          </div>
         </div>
       </Container>
     </main>
