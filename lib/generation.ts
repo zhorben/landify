@@ -1,6 +1,6 @@
 import { generateWebsite } from "./ai";
 import { createRepoFromTemplate, commitFiles } from "./github";
-import { deployToCloudflare } from "./deploy/cloudflare";
+import { initializeCloudflareDeployment } from "./deploy/cloudflare"; // Обновленный импорт
 import type { Template, GeneratedWebsite } from "@/types";
 
 export async function generateAndDeploy(
@@ -27,9 +27,9 @@ export async function generateAndDeploy(
       prepareFilesForCommit(generatedWebsite),
     );
 
-    // 4. Сразу начинаем деплой
-    console.log("Deploying to Cloudflare Pages...");
-    const deployment = await deployToCloudflare({
+    // 4. Инициируем деплой
+    console.log("Initiating Cloudflare deployment...");
+    const deploymentInit = await initializeCloudflareDeployment({
       name: repoName,
       gitRepository: {
         repo: repo.full_name,
@@ -45,9 +45,9 @@ export async function generateAndDeploy(
         url: repo.html_url,
       },
       deployment: {
-        url: deployment.url,
-        deploymentId: deployment.id,
-        status: deployment.readyState,
+        url: `https://${deploymentInit.projectName}.pages.dev`,
+        deploymentId: deploymentInit.id,
+        status: "building",
       },
     };
   } catch (error) {
@@ -59,6 +59,7 @@ export async function generateAndDeploy(
 export function prepareFilesForCommit(
   website: GeneratedWebsite,
 ): Map<string, { data: string }> {
+  // Эта часть остается без изменений
   const files = new Map<string, { data: string }>();
 
   Object.entries(website.components).forEach(([name, component]) => {

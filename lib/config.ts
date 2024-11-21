@@ -24,6 +24,17 @@ export const config = {
     8. Add loading states and error handling
     9. Use minimal animations for better UX
 
+    Code Style Requirements:
+    1. Use only standard ASCII characters in strings (no smart quotes)
+    2. Use single quotes (') for strings consistently
+    3. Use standard apostrophes in text (don't -> don't)
+    4. Follow strict TypeScript conventions
+    5. Ensure all JSX attributes use double quotes (")
+    6. Use template literals with backticks (\`) for string interpolation
+    7. Format numbers with standard digits
+    8. Avoid any special Unicode characters
+    9. Use proper escaping for special characters where needed
+
     Available Libraries (already set up):
     - shadcn/ui: UI components
     - lucide-react: Icons

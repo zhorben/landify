@@ -69,9 +69,16 @@ export function PagePreview({
           <div className="flex items-center gap-2 mb-4">
             <div className="flex-1 overflow-hidden">
               <div className="flex items-center gap-2 text-sm">
-                <div className="w-2 h-2 bg-green-500 rounded-full" />
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    page.deployment.status === "ready" &&
+                    !page.deployment.message?.includes("waiting")
+                      ? "bg-green-500"
+                      : "bg-yellow-500 animate-pulse"
+                  }`}
+                />
                 <span className="text-zinc-500 truncate">
-                  {page.deployment.url}
+                  {page.deployment.message || page.deployment.url}
                 </span>
               </div>
             </div>
@@ -87,35 +94,41 @@ export function PagePreview({
                   GitHub
                 </a>
               )}
-              <a
-                href={page.deployment.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 transition-colors"
-              >
-                <ExternalLink className="h-4 w-4" />
-                Open
-              </a>
+              {page.deployment.status === "ready" &&
+                !page.deployment.message?.includes("waiting") && (
+                  <a
+                    href={page.deployment.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 transition-colors"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Open
+                  </a>
+                )}
             </div>
           </div>
           <div className="flex-1 border border-zinc-200 rounded-lg overflow-hidden bg-white">
-            <iframe
-              src={page.deployment.url}
-              className="w-full h-full border-none"
-              title="Website Preview"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              sandbox="allow-scripts allow-same-origin allow-forms"
-            />
+            {page.deployment.status === "ready" &&
+            !page.deployment.message?.includes("waiting") ? (
+              <iframe
+                src={page.deployment.url}
+                className="w-full h-full border-none"
+                title="Website Preview"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                sandbox="allow-scripts allow-same-origin allow-forms"
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <div className="inline-flex items-center gap-3 text-sm text-zinc-500 bg-white border border-zinc-200 rounded-full px-4 py-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                  {page.deployment.message || "Setting up preview..."}
+                </div>
+              </div>
+            )}
           </div>
         </>
-      ) : (
-        <div className="h-full flex items-center justify-center">
-          <div className="inline-flex items-center gap-3 text-sm text-zinc-500 bg-white border border-zinc-200 rounded-full px-4 py-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-            Setting up preview...
-          </div>
-        </div>
-      )}
+      ) : null}
     </div>
   );
 }

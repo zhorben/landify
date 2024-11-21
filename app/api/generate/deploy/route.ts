@@ -4,7 +4,7 @@ import {
   ApiError,
 } from "@/lib/api-response";
 import { createRepoFromTemplate, commitFiles } from "@/lib/github";
-import { deployToCloudflare } from "@/lib/deploy/cloudflare";
+import { initializeCloudflareDeployment } from "@/lib/deploy/cloudflare";
 import { prepareFilesForCommit } from "@/lib/generation";
 import type { GeneratedWebsite } from "@/types";
 
@@ -50,22 +50,16 @@ export async function POST(req: Request) {
     });
     console.log("Files committed successfully");
 
-    // Деплоим на Cloudflare Pages
-    console.log("Deploying to Cloudflare Pages...");
-    const deployment = await deployToCloudflare({
+    // Инициируем деплой
+    console.log("Initiating Cloudflare deployment...");
+    const deploymentInit = await initializeCloudflareDeployment({
       name: repoName,
       gitRepository: {
         repo: repo.full_name,
         type: "github",
       },
-    }).catch(() => {
-      throw new ApiError(
-        "Failed to deploy to Cloudflare Pages",
-        500,
-        "CLOUDFLARE_DEPLOY_FAILED",
-      );
     });
-    console.log("Deployment created:", deployment);
+    console.log("Deployment initialized:", deploymentInit);
 
     const result: GeneratedWebsite = {
       ...generatedWebsite,
@@ -75,13 +69,13 @@ export async function POST(req: Request) {
         url: repo.html_url,
       },
       deployment: {
-        url: deployment.url,
-        deploymentId: deployment.id,
-        status: deployment.readyState,
+        url: `https://${deploymentInit.projectName}.pages.dev`,
+        deploymentId: deploymentInit.id,
+        status: "building",
       },
     };
 
-    return createApiResponse(result, "completed");
+    return createApiResponse(result, "deploying");
   } catch (err) {
     return handleApiError(err);
   }

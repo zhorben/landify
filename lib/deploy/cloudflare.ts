@@ -1,4 +1,48 @@
+import { fetch } from "undici";
+import dns from "node:dns";
+import { promisify } from "node:util";
 import { DeploymentStatus } from "@/types";
+
+const dnsLookup = promisify(dns.lookup);
+
+interface CloudflareAPIResponse<T> {
+  result: T;
+  success: boolean;
+  errors: Array<{ message: string }>;
+  messages: string[];
+}
+
+interface CloudflareProject {
+  id: string;
+  name: string;
+}
+
+interface CloudflareDeployment {
+  id: string;
+  short_id: string;
+  project_id: string;
+  project_name: string;
+  environment: string;
+  url: string;
+  created_on: string;
+  modified_on: string;
+  latest_stage?: {
+    name: string;
+    started_on: string;
+    ended_on: string;
+    status: string;
+  };
+  stages: Array<{
+    name: string;
+    started_on: string;
+    ended_on?: string;
+    status: string;
+  }>;
+  deployment_trigger: {
+    type: string;
+    metadata: Record<string, unknown>;
+  };
+}
 
 interface DeployOptions {
   name: string;
@@ -8,27 +52,65 @@ interface DeployOptions {
   };
 }
 
-interface DeployResult {
+interface DeploymentInitResult {
   id: string;
+  projectName: string;
+}
+
+interface DeploymentStatusResult {
+  status: DeploymentStatus;
   url: string;
-  readyState: DeploymentStatus;
-  deployUrl: string;
-  adminUrl: string;
+  message: string;
 }
 
 async function checkSiteAvailability(url: string): Promise<boolean> {
+  console.log(`Checking availability for ${url}...`);
+
   try {
-    const response = await fetch(url);
-    return response.ok;
-  } catch {
+    // DNS проверка
+    try {
+      await dnsLookup(new URL(url).hostname);
+    } catch (dnsError) {
+      console.log("DNS resolution failed, site might not be ready yet");
+      return false;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "text/html",
+          "User-Agent": "Mozilla/5.0 (compatible; StatusCheck/1.0;)",
+        },
+        redirect: "follow",
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      const isAvailable = response.ok;
+      console.log(
+        `Site availability check: ${isAvailable ? "SUCCESS" : "FAILED"} (status: ${response.status})`,
+      );
+      return isAvailable;
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      console.log("Fetch error:", fetchError);
+      return false;
+    }
+  } catch (error) {
+    console.log(`Site availability check failed:`, error);
     return false;
   }
 }
 
-export async function deployToCloudflare({
+export async function initializeCloudflareDeployment({
   name,
   gitRepository,
-}: DeployOptions): Promise<DeployResult> {
+}: DeployOptions): Promise<DeploymentInitResult> {
   if (!process.env.CLOUDFLARE_API_TOKEN) {
     throw new Error("CLOUDFLARE_API_TOKEN is required");
   }
@@ -85,20 +167,17 @@ export async function deployToCloudflare({
       },
     );
 
-    const createData = await createResponse.json();
+    const createData =
+      (await createResponse.json()) as CloudflareAPIResponse<CloudflareProject>;
     console.log("Project creation response:", createData);
 
     if (!createData.success) {
       throw new Error(
-        `Failed to create project: ${
-          createData.errors?.[0]?.message || JSON.stringify(createData.errors)
-        }`,
+        `Failed to create project: ${createData.errors?.[0]?.message || JSON.stringify(createData.errors)}`,
       );
     }
 
-    const project = createData.result;
-
-    console.log("Triggering initial deployment...");
+    // Инициируем начальный деплой
     const deployResponse = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/pages/projects/${projectName}/deployments`,
       {
@@ -114,79 +193,109 @@ export async function deployToCloudflare({
       },
     );
 
-    const deployData = await deployResponse.json();
-    console.log("Deployment trigger response:", deployData);
+    const deployData =
+      (await deployResponse.json()) as CloudflareAPIResponse<CloudflareDeployment>;
+    console.log("Deploy initialization response:", deployData);
 
-    if (!deployData.success) {
-      console.warn("Deploy trigger warning:", deployData.errors);
+    return {
+      id: deployData.success ? deployData.result.id : createData.result.id,
+      projectName,
+    };
+  } catch (error) {
+    console.error("Cloudflare deployment initialization failed:", error);
+    throw error;
+  }
+}
+
+export async function getCloudflareDeploymentStatus(
+  projectName: string,
+  deploymentId: string,
+): Promise<DeploymentStatusResult> {
+  if (!process.env.CLOUDFLARE_API_TOKEN || !process.env.CLOUDFLARE_ACCOUNT_ID) {
+    throw new Error("Missing required environment variables");
+  }
+
+  try {
+    console.log(`Checking deployment status for ${projectName}...`);
+
+    const response = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/pages/projects/${projectName}/deployments/${deploymentId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
+        },
+      },
+    );
+
+    const data =
+      (await response.json()) as CloudflareAPIResponse<CloudflareDeployment>;
+
+    if (!data.success) {
+      throw new Error(
+        `Failed to get deployment status: ${data.errors?.[0]?.message}`,
+      );
     }
 
-    // Ждем готовности деплоя
-    console.log("Waiting for deployment to be ready...");
-    let deploymentStatus: DeploymentStatus = "building";
-    let attempts = 0;
-    const maxAttempts = 20;
+    // Извлекаем статус из latest_stage
+    const deploymentStatus = data.result.latest_stage?.status;
+    console.log(`Latest stage status: ${deploymentStatus}`);
+
     const url = `https://${projectName}.pages.dev`;
 
-    while (attempts < maxAttempts) {
-      await new Promise((resolve) => setTimeout(resolve, 15000));
+    // Если деплой успешен, проверяем доступность
+    if (deploymentStatus === "success") {
+      let isAvailable = false;
+      for (let i = 0; i < 2; i++) {
+        // Уменьшено до 2 попыток
+        console.log(`Attempting site availability check ${i + 1}/2`);
+        isAvailable = await checkSiteAvailability(url);
 
-      // Проверяем доступность сайта
-      const isAvailable = await checkSiteAvailability(url);
-      if (isAvailable) {
-        console.log("Site is available!");
-        deploymentStatus = "ready";
-        break;
-      }
-
-      // Если сайт недоступен, проверяем статус деплоя
-      try {
-        const statusResponse = await fetch(
-          `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/pages/projects/${projectName}/deployments`,
-          {
-            headers: {
-              Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
-            },
-          },
-        );
-        const statusData = await statusResponse.json();
-        if (statusData.success && statusData.result?.[0]) {
-          const status = statusData.result[0].status as DeploymentStatus;
-          if (status && status !== deploymentStatus) {
-            deploymentStatus = status;
-            console.log(`Deployment status (attempt ${attempts + 1}):`, status);
-          }
-
-          // Если статус показывает готовность - проверяем доступность еще раз
-          if (["ready", "success"].includes(status)) {
-            const isNowAvailable = await checkSiteAvailability(url);
-            if (isNowAvailable) {
-              console.log("Site became available!");
-              deploymentStatus = "ready";
-              break;
-            }
-          }
+        if (isAvailable) {
+          console.log("Site is available!");
+          break;
         }
-      } catch (error) {
-        console.warn("Failed to get deployment status:", error);
+
+        if (i < 1) {
+          console.log("Site not available, waiting before retry...");
+          await new Promise((resolve) => setTimeout(resolve, 10000)); // 10 секунд между попытками
+        }
       }
 
-      attempts++;
+      if (!isAvailable) {
+        return {
+          status: "building",
+          url,
+          message: "Deployment complete, waiting for DNS propagation",
+        };
+      }
+
+      return {
+        status: "ready",
+        url,
+        message: "Site is live and accessible",
+      };
     }
 
-    if (attempts >= maxAttempts) {
-      console.log("Max attempts reached, returning current status");
+    // Преобразуем статус Cloudflare в наш формат
+    let status: DeploymentStatus;
+    if (deploymentStatus === "success") {
+      status = "ready";
+    } else if (deploymentStatus === "failure") {
+      status = "failed";
+    } else if (deploymentStatus === "pending") {
+      status = "building";
+    } else {
+      status = "building";
     }
 
     return {
-      id: project.id,
-      url: url,
-      readyState: deploymentStatus,
-      deployUrl: url,
-      adminUrl: `https://dash.cloudflare.com/${process.env.CLOUDFLARE_ACCOUNT_ID}/pages/view/${projectName}`,
+      status,
+      url,
+      message:
+        status === "failed" ? "Deployment failed" : "Deployment in progress",
     };
   } catch (error) {
-    console.error("Cloudflare deployment failed:", error);
+    console.error("Failed to get deployment status:", error);
     throw error;
   }
 }
